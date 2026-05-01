@@ -238,7 +238,7 @@ function AmountModal({ food, onConfirm, onClose, onSaveToLibrary }) {
             </div>
           </div>
         ) : amount.trim() ? (
-          <div style={{ background: C.bgWarm, borderRadius: 14, padding: "12px 16px", marginBottom: 18, fontSize: 13, color: C.textLight, fontFamily: "'DM Sans', sans-serif' }}>
+          <div style={{ background: C.bgWarm, borderRadius: 14, padding: "12px 16px", marginBottom: 18, fontSize: 13, color: C.textLight, fontFamily: "'DM Sans', sans-serif" }}>
             Try formats like: <strong>4 oz</strong>, <strong>150g</strong>, <strong>1 cup</strong>, <strong>2 tbsp</strong>
           </div>
         ) : null}
@@ -1471,4 +1471,3 @@ export default function App() {
     </div>
   );
 }
-
