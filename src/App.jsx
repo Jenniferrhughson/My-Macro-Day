@@ -25,21 +25,21 @@ function newId() { return _nextId++; }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg: "#faf6f0",
+  bg: "#faf8f5",
   bgCard: "#ffffff",
-  bgWarm: "#f5ead8",       // cardamom tint
-  bgSand: "#ebdcc0",       // soft cardamom
-  text: "#3d2a26",
-  textMid: "#7a6258",
-  textLight: "#b5a397",
-  accent: "#9D5353",       // masala
-  accentWarm: "#BF8B67",   // cinnamon toast
-  accentSoft: "#DBCB96",   // cardamom
-  good: "#8a9d6a",         // warm olive (replaces sage)
-  under: "#632626",        // red chai
-  over: "#632626",         // red chai
-  border: "rgba(155,110,90,0.2)",
-  borderMid: "rgba(155,110,90,0.35)",
+  bgWarm: "#f5f0e8",
+  bgSand: "#ede8df",
+  text: "#3d3530",
+  textMid: "#7a6f66",
+  textLight: "#b5a99e",
+  accent: "#8aab89",       // sage green
+  accentWarm: "#c4956a",   // warm tan
+  accentSoft: "#d4c4b5",   // soft taupe
+  good: "#7aaa7a",
+  under: "#c97a6b",
+  over: "#c97a6b",
+  border: "rgba(180,160,140,0.2)",
+  borderMid: "rgba(180,160,140,0.35)",
 };
 
 // ─── Macro logic ─────────────────────────────────────────────────────────────
@@ -98,31 +98,39 @@ function pillStatus(actual, target) {
 }
 
 // ─── Open Food Facts search ───────────────────────────────────────────────────
+// ─── USDA FoodData Central search (CORS-friendly, free) ──────────────────────
+const USDA_API_KEY = "DEMO_KEY"; // works for low usage; user can replace with free key from api.nal.usda.gov
+
 async function searchOpenFoodFacts(query) {
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=8&fields=product_name,brands,nutriments,serving_size`;
-  const res = await fetch(url);
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}&pageSize=8&api_key=${USDA_API_KEY}`;
+  const res = await fetch(url, { mode: "cors" });
   const data = await res.json();
-  return (data.products || [])
-    .filter(p => p.product_name && p.nutriments)
-    .map(p => ({
-      id: "off_" + Math.random(),
-      name: [p.product_name, p.brands].filter(Boolean).join(" — ").slice(0, 60),
-      // Store per-100g values for amount-based calculation
-      per100g: {
-        calories: parseFloat(p.nutriments["energy-kcal_100g"]) || 0,
-        protein:  parseFloat(p.nutriments["proteins_100g"])      || 0,
-        carbs:    parseFloat(p.nutriments["carbohydrates_100g"]) || 0,
-        fat:      parseFloat(p.nutriments["fat_100g"])           || 0,
-      },
-      // Also keep serving-based as fallback display
-      calories: Math.round(p.nutriments["energy-kcal_serving"] || p.nutriments["energy-kcal_100g"] || 0),
-      protein:  Math.round((p.nutriments["proteins_serving"]      || p.nutriments["proteins_100g"]      || 0) * 10) / 10,
-      carbs:    Math.round((p.nutriments["carbohydrates_serving"] || p.nutriments["carbohydrates_100g"] || 0) * 10) / 10,
-      fat:      Math.round((p.nutriments["fat_serving"]           || p.nutriments["fat_100g"]           || 0) * 10) / 10,
-      serving:  p.serving_size || "100g",
-      fromDatabase: true,
-    }))
-    .filter(p => p.calories > 0 || (p.per100g && p.per100g.calories > 0));
+  return (data.foods || [])
+    .filter(f => f.foodNutrients && f.description)
+    .map(f => {
+      const get = (name) => {
+        const n = f.foodNutrients.find(n => n.nutrientName && n.nutrientName.toLowerCase().includes(name.toLowerCase()));
+        return n ? parseFloat(n.value) || 0 : 0;
+      };
+      const calories = get("Energy") || get("energy");
+      const protein  = get("Protein");
+      const carbs    = get("Carbohydrate");
+      const fat      = get("Total lipid");
+      if (!calories) return null;
+      return {
+        id: "usda_" + f.fdcId,
+        name: f.description.slice(0, 60) + (f.brandOwner ? ` — ${f.brandOwner}` : ""),
+        per100g: { calories, protein, carbs, fat },
+        calories: Math.round(calories),
+        protein:  Math.round(protein  * 10) / 10,
+        carbs:    Math.round(carbs    * 10) / 10,
+        fat:      Math.round(fat      * 10) / 10,
+        serving:  "100g",
+        fromDatabase: true,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
 }
 
 // ─── Amount parser ────────────────────────────────────────────────────────────
@@ -338,7 +346,7 @@ function FoodSearch({ foods, onSelect, onSaveToLibrary, placeholder = "Search fo
             {(dbResults.length > 0 || dbLoading) && (
               <>
                 <div style={{ padding: "8px 16px 4px", fontSize: 10, color: C.textLight, letterSpacing: 1.5, textTransform: "uppercase", fontFamily: "'DM Sans', sans-serif", borderTop: localResults.length > 0 ? `1px solid ${C.border}` : "none" }}>
-                  Open Food Facts {dbLoading && <span style={{ opacity: 0.5 }}>searching…</span>}
+                  USDA Database {dbLoading && <span style={{ opacity: 0.5 }}>searching…</span>}
                 </div>
                 {dbResults.map(food => (
                   <FoodRow key={food.id} food={food} onSelect={() => pickFood(food)} showSave={false} />
@@ -394,9 +402,9 @@ function MacroPill({ label, actual, target }) {
   const border = logged ? color + "40" : C.border;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", background: bg, borderRadius: 10, padding: "7px 10px", minWidth: 60, border: `1px solid ${border}`, transition: "all 0.3s" }}>
-      <span style={{ fontSize: 9, color: C.textLight, letterSpacing: 1.2, fontFamily: "monospace", marginBottom: 3, textTransform: "uppercase" }}>{label}</span>
+      <span style={{ fontSize: 9, color: C.textLight, letterSpacing: 1.2, fontFamily: "ora\\, georgia\, serif", marginBottom: 3, textTransform: "uppercase" }}>{label}</span>
       <span style={{ fontSize: 15, fontWeight: 700, color: logged ? color : C.textLight, fontFamily: "Georgia, serif", lineHeight: 1 }}>{logged ? Math.round(actual) : "—"}</span>
-      <span style={{ fontSize: 9, color: C.textLight, fontFamily: "monospace", marginTop: 2 }}>/{target}{label === "CAL" ? "" : "g"}</span>
+      <span style={{ fontSize: 9, color: C.textLight, fontFamily: "ora\\, georgia\, serif", marginTop: 2 }}>/{target}{label === "CAL" ? "" : "g"}</span>
       {logged && st !== "empty" && (
         <span style={{ fontSize: 8, color, marginTop: 3, fontWeight: 600 }}>{st === "good" ? "✓" : st === "under" ? "↑ more" : "↓ over"}</span>
       )}
@@ -413,7 +421,7 @@ function TotalBar({ label, value, goal }) {
     <div style={{ flex: 1 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
         <span style={{ fontSize: 11, color: C.textMid, letterSpacing: 0.5 }}>{label}</span>
-        <span style={{ fontSize: 11, fontFamily: "monospace", color: value > 0 ? barColor : C.textLight, fontWeight: 600 }}>
+        <span style={{ fontSize: 11, fontFamily: "ora\\, georgia\, serif", color: value > 0 ? barColor : C.textLight, fontWeight: 600 }}>
           {Math.round(value)}<span style={{ color: C.textLight, fontWeight: 400 }}>/{goal}</span>
         </span>
       </div>
@@ -616,14 +624,14 @@ function HistoryView() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 16 }}>{slot.icon}</span>
               <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{slot.label}</span>
-              <span style={{ fontSize: 11, color: C.textLight, marginLeft: "auto", fontFamily: "monospace" }}>
+              <span style={{ fontSize: 11, color: C.textLight, marginLeft: "auto", fontFamily: "ora\\, georgia\, serif" }}>
                 {Math.round(st.calories)}cal · {Math.round(st.protein)}P · {Math.round(st.carbs)}C · {Math.round(st.fat)}F
               </span>
             </div>
             {items.map(item => (
               <div key={item.food.id} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderTop: `1px solid ${C.border}` }}>
                 <span style={{ fontSize: 14, color: C.textMid }}>{item.food.name} <span style={{ color: C.textLight }}>× {item.servings}</span></span>
-                <span style={{ fontSize: 12, fontFamily: "monospace", color: C.textLight }}>{Math.round(item.food.calories * item.servings)} cal</span>
+                <span style={{ fontSize: 12, fontFamily: "ora\\, georgia\, serif", color: C.textLight }}>{Math.round(item.food.calories * item.servings)} cal</span>
               </div>
             ))}
           </div>
@@ -855,9 +863,7 @@ function getThisWeekKeys() {
 
 // ─── Insights View ────────────────────────────────────────────────────────────
 function InsightsView({ goals, targetPct, onUpdateGoals, onUpdateTargetPct }) {
-  const [editingGoals, setEditingGoals] = useState(false);
   const [editingPct, setEditingPct] = useState(false);
-  const [draftGoals, setDraftGoals] = useState({ ...goals });
   const [draftPct, setDraftPct] = useState(targetPct);
 
   const weekKeys = useMemo(() => getThisWeekKeys(), []);
@@ -1087,34 +1093,109 @@ function InsightsView({ goals, targetPct, onUpdateGoals, onUpdateTargetPct }) {
         </div>
       )}
 
-      {/* Goals editor */}
-      <div style={{ padding: "0 20px 20px" }}>
-        <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden" }}>
-          <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: editingGoals ? `1px solid ${C.border}` : "none" }}>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Daily Goals</div>
-              <div style={{ fontSize: 12, color: C.textLight, fontFamily: "'DM Sans', sans-serif", marginTop: 1 }}>{goals.calories} cal · {goals.protein}P · {goals.carbs}C · {goals.fat}F</div>
-            </div>
-            <button
-              onClick={() => { setDraftGoals({...goals}); setEditingGoals(v => !v); }}
-              style={{ background: C.bgSand, border: `1px solid ${C.border}`, color: C.textMid, borderRadius: 8, padding: "6px 14px", fontSize: 12, cursor: "pointer" }}
-            >{editingGoals ? "Cancel" : "Edit Goals"}</button>
-          </div>
-          {editingGoals && (
-            <div style={{ padding: "14px 16px" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                {[["calories","Calories (kcal)"],["protein","Protein (g)"],["carbs","Carbs (g)"],["fat","Fat (g)"]].map(([k, lbl]) => (
-                  <div key={k}>
-                    <div style={{ fontSize: 11, color: C.textLight, marginBottom: 5, fontFamily: "'DM Sans', sans-serif" }}>{lbl}</div>
-                    <input type="number" value={draftGoals[k]} onChange={e => setDraftGoals(p => ({...p, [k]: e.target.value}))} style={{ ...INP, fontSize: 15 }} />
-                  </div>
-                ))}
+      {/* History section embedded below insights */}
+      <div style={{ padding: "0 20px 8px" }}>
+        <div style={{ fontSize: 11, color: C.textLight, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12, fontFamily: "'DM Sans', sans-serif" }}>History</div>
+      </div>
+      <HistoryView />
+    </div>
+  );
+}
+
+// ─── Goals View ───────────────────────────────────────────────────────────────
+function GoalsView({ goals, targetPct, onUpdateGoals, onUpdateTargetPct }) {
+  const [draftGoals, setDraftGoals] = useState({ ...goals });
+  const [draftPct, setDraftPct] = useState(targetPct);
+  const [saved, setSaved] = useState(false);
+
+  const saveAll = () => {
+    onUpdateGoals({
+      calories: parseInt(draftGoals.calories) || goals.calories,
+      protein:  parseInt(draftGoals.protein)  || goals.protein,
+      carbs:    parseInt(draftGoals.carbs)    || goals.carbs,
+      fat:      parseInt(draftGoals.fat)      || goals.fat,
+    });
+    onUpdateTargetPct(Math.max(50, Math.min(100, parseInt(draftPct) || 85)));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div style={{ padding: "20px" }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Lora', Georgia, serif", fontSize: 22, color: C.text, marginBottom: 4 }}>My Goals</div>
+        <div style={{ fontSize: 13, color: C.textLight }}>Update your daily macro targets and weekly compliance goal.</div>
+      </div>
+
+      {/* Daily macros */}
+      <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, background: C.bgWarm }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'Lora', Georgia, serif" }}>Daily Targets</div>
+          <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>What you aim to hit each day</div>
+        </div>
+        <div style={{ padding: "18px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {[
+              ["calories", "Calories", "kcal", "🔥"],
+              ["protein",  "Protein",  "g",    "💪"],
+              ["carbs",    "Carbs",    "g",    "🌾"],
+              ["fat",      "Fat",      "g",    "🫒"],
+            ].map(([k, lbl, unit, icon]) => (
+              <div key={k}>
+                <div style={{ fontSize: 12, color: C.textMid, marginBottom: 8, display: "flex", alignItems: "center", gap: 5 }}>
+                  <span>{icon}</span>
+                  <span style={{ fontWeight: 500 }}>{lbl}</span>
+                  <span style={{ color: C.textLight }}>({unit})</span>
+                </div>
+                <input
+                  type="number"
+                  value={draftGoals[k]}
+                  onChange={e => setDraftGoals(p => ({ ...p, [k]: e.target.value }))}
+                  style={{ ...INP, fontSize: 20, padding: "12px 14px", fontFamily: "'Lora', Georgia, serif", fontWeight: 600, color: C.accent }}
+                />
               </div>
-              <button onClick={saveGoals} style={{ width: "100%", background: C.accent, border: "none", color: "#fff", borderRadius: 12, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Save New Goals</button>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Weekly target % */}
+      <div style={{ background: C.bgCard, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", marginBottom: 24 }}>
+        <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, background: C.bgWarm }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'Lora', Georgia, serif" }}>Weekly Compliance Target</div>
+          <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>The minimum % of goals you want to hit each day</div>
+        </div>
+        <div style={{ padding: "18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+            <input
+              type="number" min="50" max="100"
+              value={draftPct}
+              onChange={e => setDraftPct(e.target.value)}
+              style={{ ...INP, fontSize: 28, padding: "12px 16px", fontFamily: "'Lora', Georgia, serif", fontWeight: 700, color: C.accent, width: 110, textAlign: "center" }}
+            />
+            <span style={{ fontSize: 28, fontFamily: "'Lora', Georgia, serif", color: C.accent, fontWeight: 700 }}>%</span>
+            <div style={{ fontSize: 13, color: C.textLight, lineHeight: 1.5 }}>
+              Days where you hit this % of all 4 macros are counted as "on track"
+            </div>
+          </div>
+          {/* Quick presets */}
+          <div style={{ display: "flex", gap: 8 }}>
+            {[70, 80, 85, 90, 95].map(p => (
+              <button key={p} onClick={() => setDraftPct(p)} style={{ flex: 1, padding: "8px 4px", borderRadius: 10, border: `1.5px solid ${parseInt(draftPct) === p ? C.accent : C.border}`, background: parseInt(draftPct) === p ? "rgba(138,171,137,0.12)" : "transparent", color: parseInt(draftPct) === p ? C.accent : C.textMid, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{p}%</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Save */}
+      <button
+        onClick={saveAll}
+        style={{ width: "100%", background: saved ? C.good : C.accent, border: "none", color: "#fff", borderRadius: 14, padding: "15px", fontSize: 16, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.3s" }}
+      >
+        {saved ? "✓ Saved!" : "Save Goals"}
+      </button>
     </div>
   );
 }
@@ -1201,7 +1282,7 @@ export default function App() {
     setSavingMealSlot(null);
   };
 
-  const TABS = [["day","Today"],["insights","Insights"],["library","Library"],["recipes","Recipes"],["history","History"]];
+  const TABS = [["day","Today"],["insights","Insights"],["library","Library"],["recipes","Recipes"],["goals","Goals"]];
 
   const btnTab = (v) => ({
     padding: "7px 12px", borderRadius: 20, border: "none", cursor: "pointer",
@@ -1224,6 +1305,7 @@ export default function App() {
         ::-webkit-scrollbar { width: 0; }
         details summary { list-style: none; }
         details summary::-webkit-details-marker { display: none; }
+        .num { font-family: 'Lora', Georgia, serif; font-variant-numeric: oldstyle-nums; }
       `}</style>
 
       {/* ── Header ── */}
@@ -1455,7 +1537,11 @@ export default function App() {
         </div>
       )}
 
-      {view === "history" && <HistoryView />}
+      {view === "goals" && (
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+          <GoalsView goals={goals} targetPct={targetPct} onUpdateGoals={setGoals} onUpdateTargetPct={setTargetPct} />
+        </div>
+      )}
 
       {pendingRecipe && <RecipeModal recipe={pendingRecipe} onSave={handleRecipeSave} onClose={() => setPendingRecipe(null)} />}
 
