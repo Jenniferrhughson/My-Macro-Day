@@ -35,13 +35,12 @@ const C = {
   accent: "#9D5353",       // masala
   accentWarm: "#BF8B67",   // cinnamon toast
   accentSoft: "#DBCB96",   // cardamom
-  good: "#8a9d6a",         // warm olive (replaces sage)
+  good: "#8a9d6a",         // warm olive
   under: "#632626",        // red chai
   over: "#632626",         // red chai
   border: "rgba(155,110,90,0.2)",
   borderMid: "rgba(155,110,90,0.35)",
 };
-
 // ─── Macro logic ─────────────────────────────────────────────────────────────
 function computeTargets(slotActuals, goals = { calories: 1700, protein: 149, carbs: 149, fat: 57 }) {
   const targets = {};
