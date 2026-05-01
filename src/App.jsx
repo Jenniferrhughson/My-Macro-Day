@@ -25,21 +25,21 @@ function newId() { return _nextId++; }
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
-  bg: "#faf8f5",
+  bg: "#faf6f0",
   bgCard: "#ffffff",
-  bgWarm: "#f5f0e8",
-  bgSand: "#ede8df",
-  text: "#3d3530",
-  textMid: "#7a6f66",
-  textLight: "#b5a99e",
-  accent: "#8aab89",       // sage green
-  accentWarm: "#c4956a",   // warm tan
-  accentSoft: "#d4c4b5",   // soft taupe
-  good: "#7aaa7a",
-  under: "#c97a6b",
-  over: "#c97a6b",
-  border: "rgba(180,160,140,0.2)",
-  borderMid: "rgba(180,160,140,0.35)",
+  bgWarm: "#f5ead8",       // cardamom tint
+  bgSand: "#ebdcc0",       // soft cardamom
+  text: "#3d2a26",
+  textMid: "#7a6258",
+  textLight: "#b5a397",
+  accent: "#9D5353",       // masala
+  accentWarm: "#BF8B67",   // cinnamon toast
+  accentSoft: "#DBCB96",   // cardamom
+  good: "#8a9d6a",         // warm olive (replaces sage)
+  under: "#632626",        // red chai
+  over: "#632626",         // red chai
+  border: "rgba(155,110,90,0.2)",
+  borderMid: "rgba(155,110,90,0.35)",
 };
 
 // ─── Macro logic ─────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ function AmountModal({ food, onConfirm, onClose, onSaveToLibrary }) {
             </div>
           </div>
         ) : amount.trim() ? (
-          <div style={{ background: C.bgWarm, borderRadius: 14, padding: "12px 16px", marginBottom: 18, fontSize: 13, color: C.textLight, fontFamily: "'DM Sans', sans-serif" }}>
+          <div style={{ background: C.bgWarm, borderRadius: 14, padding: "12px 16px", marginBottom: 18, fontSize: 13, color: C.textLight, fontFamily: "'DM Sans', sans-serif' }}>
             Try formats like: <strong>4 oz</strong>, <strong>150g</strong>, <strong>1 cup</strong>, <strong>2 tbsp</strong>
           </div>
         ) : null}
